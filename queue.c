@@ -22,17 +22,17 @@ struct list_head *q_new()
 }
 
 /* Free all storage used by queue */
-void q_free(struct list_head *l) 
+void q_free(struct list_head *l)
 {
-    if (!head)
+    if (!l)
         return;
     struct list_head *node, *safe;
-    list_for_each_safe (node, safe, head) {
+    list_for_each_safe (node, safe, l) {
         element_t *e = container_of(node, element_t, list);
         free(e->value);
         free(e);
     }
-    free(head);
+    free(l);
 }
 
 /* Insert an element at head of queue */
@@ -180,7 +180,7 @@ void q_swap(struct list_head *head)
 }
 
 /* Reverse elements in queue */
-void q_reverse(struct list_head *head) 
+void q_reverse(struct list_head *head)
 {
     if (!head)
         return;
