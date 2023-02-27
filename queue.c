@@ -182,7 +182,7 @@ void q_swap(struct list_head *head)
 /* Reverse elements in queue */
 void q_reverse(struct list_head *head)
 {
-    if (!head)
+    if (!head || list_empty(head))
         return;
     struct list_head *prev = head->prev, *next, *cur = head;
     list_for_each (next, head) {
@@ -201,8 +201,69 @@ void q_reverseK(struct list_head *head, int k)
     // https://leetcode.com/problems/reverse-nodes-in-k-group/
 }
 
-/* Sort elements of queue in ascending order */
-void q_sort(struct list_head *head) {}
+struct list_head *merge(struct list_head *l1, struct list_head *l2)
+{
+    struct list_head *head = NULL, **ptr = &head, **node;
+    for (node = NULL; l1 && l2; *node = (*node)->next) {
+        char *v1 = list_entry(l1, element_t, list)->value,
+             *v2 = list_entry(l2, element_t, list)->value;
+        node = (strcasecmp(v1, v2) <= 0) ? &l1 : &l2;
+        *ptr = *node;
+        ptr = &(*ptr)->next;
+    }
+    if (l1 == NULL)
+        *ptr = l2;
+    else
+        *ptr = l1;
+    return head;
+}
+
+struct list_head *find_mid(struct list_head *head)
+{
+    if (!head)
+        return NULL;
+    struct list_head *node, *mid = head;
+    for (node = head; node != NULL; node = node->next) {
+        if (node->next != NULL) {
+            node = node->next;
+            mid = mid->next;
+        }
+    }
+    return mid;
+}
+
+struct list_head *merge_sort(struct list_head *head)
+{
+    if (!head)
+        return NULL;
+    struct list_head *mid = find_mid(head), *ll = head, *rl = mid;
+    if (mid == head)
+        return head;
+    mid->prev->next = NULL;
+    ll = merge_sort(ll);
+    rl = merge_sort(rl);
+    return merge(ll, rl);
+}
+/* *
+ * Sort elements of queue in ascending order
+ */
+void q_sort(struct list_head *head)
+{
+    if (!head || list_empty(head))
+        return;
+    struct list_head *single_list_head = head->next;
+    head->prev->next = NULL;
+    struct list_head *sorted = merge_sort(single_list_head);
+    struct list_head *ptr, *next_ptr;
+    for (ptr = sorted, next_ptr = sorted->next; next_ptr != NULL;
+         ptr = next_ptr, next_ptr = next_ptr->next) {
+        next_ptr->prev = ptr;
+    }
+    head->next = sorted;
+    sorted->prev = head;
+    head->prev = ptr;
+    ptr->next = head;
+}
 
 /* Remove every node which has a node with a strictly greater value anywhere to
  * the right side of it */
