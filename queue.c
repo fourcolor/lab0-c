@@ -202,15 +202,15 @@ void q_reverseK(struct list_head *head, int k)
     if (!head || list_empty(head))
         return;
     int counter = 0;
-    struct list_head *node, *safe, *sub_list_head = q_new(), *tmp_head = head;
+    struct list_head *node, *safe, sub_list_head, *tmp_head = head;
     list_for_each_safe (node, safe, head) {
         counter++;
         if (counter == k) {
-            list_cut_position(sub_list_head, tmp_head, node);
-            q_reverse(sub_list_head);
-            list_splice_init(sub_list_head, tmp_head);
+            list_cut_position(&sub_list_head, tmp_head, node);
+            q_reverse(&sub_list_head);
+            list_splice_init(&sub_list_head, tmp_head);
             counter = 0;
-            tmp_head = head;
+            tmp_head = safe->prev;
         }
     }
 }
@@ -284,7 +284,27 @@ void q_sort(struct list_head *head)
 int q_descend(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-nodes-from-linked-list/
-    return 0;
+    if (!head || list_empty(head))
+        return 0;
+    struct list_head *node, *safe;
+    char *max_val = NULL;
+    for (node = (head)->prev, safe = node->prev; node != (head);
+         node = safe, safe = node->prev) {
+        if (max_val == NULL) {
+            max_val = list_entry(node, element_t, list)->value;
+            continue;
+        }
+        int ret = strcmp(max_val, list_entry(node, element_t, list)->value);
+        if (ret < 0) {
+            max_val = list_entry(node, element_t, list)->value;
+        } else {
+            list_del(node);
+            element_t *e = list_entry(node, element_t, list);
+            free(e->value);
+            free(e);
+        }
+    }
+    return q_size(head);
 }
 
 /* Merge all the queues into one sorted queue, which is in ascending order */
