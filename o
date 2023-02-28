@@ -1,0 +1,19 @@
+scripts/driver.py -c
+# Test of insert_head and remove_head
+# Test of insert_head, insert_tail, remove_head, remove_tail, and delete_mid
+# Test of insert_head, insert_tail, remove_head, reverse and merge
+q: 3 f: 1
+l1: 4 f: 1
+l2: 2 f: 1
+l1: 5 f: 1
+l2: 1 f: 1
+l1: 6 f: 1
+l2: 0 f: 0
+l1: 6
+l1: 3
+---	Trace		Points
++++ TESTING trace trace-01-ops:
+[92m---	trace-01-ops	5/5[0m
++++ TESTING trace trace-02-ops:
+[92m---	trace-02-ops	6/6[0m
++++ TESTING trace trace-03-ops:

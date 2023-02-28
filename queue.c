@@ -307,9 +307,47 @@ int q_descend(struct list_head *head)
     return q_size(head);
 }
 
+struct list_head *merge_two_list(struct list_head *l1, struct list_head *l2)
+{
+    struct list_head *f1 = l1;
+    struct list_head *f2 = l2->next;
+    while (f1->next != l1 && !list_empty(l2)) {
+        char *s1 = list_entry(f1->next, element_t, list)->value;
+        char *s2 = list_entry(l2->next, element_t, list)->value;
+        if (strcmp(s1, s2) > 0) {
+            list_del(f2);
+            list_add(f2, f1);
+            f2 = l2->next;
+        }
+        f1 = f1->next;
+    }
+    if (!list_empty(l2)) {
+        list_splice_tail_init(l2, l1);
+    }
+
+    return l1;
+}
+
 /* Merge all the queues into one sorted queue, which is in ascending order */
 int q_merge(struct list_head *head)
 {
     // https://leetcode.com/problems/merge-k-sorted-lists/
-    return 0;
+    if (!head || list_empty(head))
+        return 0;
+    if (list_is_singular(head))
+        return list_entry(head->next, queue_contex_t, chain)->size;
+    struct list_head *node, *back = head->prev;
+    while (head->next != back) {
+        for (node = (head)->next; node != (back); node = node->next) {
+            queue_contex_t *q1 = list_entry(node, queue_contex_t, chain);
+            queue_contex_t *q2 = list_entry(back, queue_contex_t, chain);
+            if (q1 == q2)
+                break;
+            q1->q = merge_two_list(q1->q, q2->q);
+            back = back->prev;
+            if (back == node)
+                break;
+        }
+    }
+    return q_size(list_entry(head->next, queue_contex_t, chain)->q);
 }
