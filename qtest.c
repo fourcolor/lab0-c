@@ -21,8 +21,8 @@
 
 #include "dudect/fixture.h"
 #include "list.h"
+#include "list_sort.h"
 #include "random.h"
-
 /* Shannon entropy */
 extern double shannon_entropy(const uint8_t *input_data);
 extern int show_entropy;
@@ -72,6 +72,9 @@ static int fail_limit = BIG_LIST_SIZE;
 static int fail_count = 0;
 
 static int string_length = MAXSTRING;
+
+/* Which algorithm use when sorting*/
+static int sort_algo = 0;
 
 #define MIN_RANDSTR_LEN 5
 #define MAX_RANDSTR_LEN 10
@@ -624,6 +627,12 @@ static bool do_size(int argc, char *argv[])
     return ok && !error_check();
 }
 
+static int cmp(void *priv, const struct list_head *a, const struct list_head *b)
+{
+    return strcmp(list_entry(a, element_t, list)->value,
+                  list_entry(b, element_t, list)->value);
+}
+
 bool do_sort(int argc, char *argv[])
 {
     if (argc != 1) {
@@ -643,8 +652,14 @@ bool do_sort(int argc, char *argv[])
     error_check();
 
     set_noallocate_mode(true);
-    if (current && exception_setup(true))
-        q_sort(current->q);
+    if (current && exception_setup(true)) {
+        if (exception_setup(true)) {
+            if (sort_algo == 0)
+                q_sort(current->q);
+            else
+                list_sort(NULL, current->q, cmp);
+        }
+    }
     exception_cancel();
     set_noallocate_mode(false);
 
@@ -1023,6 +1038,10 @@ static void console_init()
               NULL);
     add_param("fail", &fail_limit,
               "Number of times allow queue operations to return false", NULL);
+    add_param("sort", &sort_algo,
+              "Which algorithm use when sorting (0: user defined(default), 1: "
+              "kernal)",
+              NULL);
 }
 
 /* Signal handlers */
