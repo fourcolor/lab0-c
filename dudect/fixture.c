@@ -42,8 +42,10 @@
 
 #define ENOUGH_MEASURE 10000
 #define TEST_TRIES 10
+#define NUMBER_PERCENTILES 100
+#define TESTS (1 + NUMBER_PERCENTILES)
 
-static t_context_t *t;
+static t_context_t *t[TESTS];
 
 /* threshold values for Welch's t-test */
 enum {
@@ -64,7 +66,9 @@ static void differentiate(int64_t *exec_times,
         exec_times[i] = after_ticks[i] - before_ticks[i];
 }
 
-static void update_statistics(const int64_t *exec_times, uint8_t *classes)
+static void update_statistics(const int64_t *exec_times,
+                              const uint8_t *classes,
+                              const int *percentiles)
 {
     for (size_t i = 0; i < N_MEASURES; i++) {
         int64_t difference = exec_times[i];
@@ -73,14 +77,39 @@ static void update_statistics(const int64_t *exec_times, uint8_t *classes)
             continue;
 
         /* do a t-test on the execution time */
-        t_push(t, difference, classes[i]);
+        t_push(t[0], difference, classes[i]);
+
+        // t-test on cropped execution times, for several cropping thresholds.
+        for (size_t crop_index = 0; crop_index < NUMBER_PERCENTILES;
+             crop_index++) {
+            if (difference < percentiles[crop_index]) {
+                t_push(t[crop_index + 1], difference, classes[i]);
+            }
+        }
     }
+}
+
+static t_context_t *max_test(t_context_t *t[TESTS])
+{
+    size_t ret = 0;
+    double max = 0;
+    for (size_t i = 0; i < TESTS; i++) {
+        if (t[i]->n[0] > ENOUGH_MEASURE) {
+            double x = fabs(t_compute(t[i]));
+            if (max < x) {
+                max = x;
+                ret = i;
+            }
+        }
+    }
+    return t[ret];
 }
 
 static bool report(void)
 {
-    double max_t = fabs(t_compute(t));
-    double number_traces_max_t = t->n[0] + t->n[1];
+    t_context_t *max_test_t = max_test(t);
+    double max_t = fabs(t_compute(max_test_t));
+    double number_traces_max_t = max_test_t->n[0] + max_test_t->n[1];
     double max_tau = max_t / sqrt(number_traces_max_t);
 
     printf("\033[A\033[2K");
@@ -116,7 +145,31 @@ static bool report(void)
     return true;
 }
 
-static bool doit(int mode)
+static int cmp(const int64_t *a, const int64_t *b)
+{
+    return (int) (*a - *b);
+}
+
+static int64_t percentile(int64_t *a, double which, size_t size)
+{
+    qsort(a, size, sizeof(int64_t), (int (*)(const void *, const void *)) cmp);
+    size_t array_position = (size_t) ((double) size * (double) which);
+    assert(array_position >= 0);
+    assert(array_position < size);
+    return a[array_position];
+}
+
+static void prepare_percentiles(int *percentiles, int64_t *exec_times)
+{
+    for (size_t i = 0; i < NUMBER_PERCENTILES; i++) {
+        percentiles[i] = percentile(
+            exec_times,
+            1 - (pow(0.5, 10 * (double) (i + 1) / NUMBER_PERCENTILES)),
+            N_MEASURES);
+    }
+}
+
+static bool doit(int mode, int *percentiles)
 {
     int64_t *before_ticks = calloc(N_MEASURES + 1, sizeof(int64_t));
     int64_t *after_ticks = calloc(N_MEASURES + 1, sizeof(int64_t));
@@ -133,8 +186,12 @@ static bool doit(int mode)
 
     bool ret = measure(before_ticks, after_ticks, input_data, mode);
     differentiate(exec_times, before_ticks, after_ticks);
-    update_statistics(exec_times, classes);
-    ret &= report();
+    if (percentiles[NUMBER_PERCENTILES] == 0) {
+        prepare_percentiles(percentiles, exec_times);
+    } else {
+        update_statistics(exec_times, classes, percentiles);
+        ret &= report();
+    }
 
     free(before_ticks);
     free(after_ticks);
@@ -148,30 +205,40 @@ static bool doit(int mode)
 static void init_once(void)
 {
     init_dut();
-    t_init(t);
+    for (int i = 0; i < TESTS; i++) {
+        t_init(t[0]);
+    }
 }
 
 static bool test_const(char *text, int mode)
 {
     bool result = false;
-    t = malloc(sizeof(t_context_t));
+    for (int i = 0; i < TESTS; i++) {
+        t[i] = malloc(sizeof(t_context_t));
+    }
+    int percentiles[NUMBER_PERCENTILES] = {0};
 
     for (int cnt = 0; cnt < TEST_TRIES; ++cnt) {
         printf("Testing %s...(%d/%d)\n\n", text, cnt, TEST_TRIES);
         init_once();
         for (int i = 0; i < ENOUGH_MEASURE / (N_MEASURES - DROP_SIZE * 2) + 1;
              ++i)
-            result = doit(mode);
+            result = doit(mode, percentiles);
         printf("\033[A\033[2K\033[A\033[2K");
         if (result)
             break;
     }
-    free(t);
+    for (int i = 0; i < TESTS; i++) {
+        free(t[i]);
+    }
     return result;
 }
 
-#define DUT_FUNC_IMPL(op) \
-    bool is_##op##_const(void) { return test_const(#op, DUT(op)); }
+#define DUT_FUNC_IMPL(op)                \
+    bool is_##op##_const(void)           \
+    {                                    \
+        return test_const(#op, DUT(op)); \
+    }
 
 #define _(x) DUT_FUNC_IMPL(x)
 DUT_FUNCS
